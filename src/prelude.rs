@@ -5,7 +5,8 @@
 //! ```
 
 pub use crate::{
-    Error, FlashEraseSize, Is25lp128f, JedecId, Status, CHIP_SIZE, PAGE_SIZE, SECTOR_SIZE,
+    AddressMode, BlockProtectionLevel, DriverStrength, Error, ExtendedReadStatus, FlashEraseSize,
+    Is25lp128f, JedecId, OperationErrors, Status, StatusWrite, CHIP_SIZE, PAGE_SIZE, SECTOR_SIZE,
 };
 
 #[cfg(feature = "spi-device")]

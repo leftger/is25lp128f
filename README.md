@@ -2,11 +2,20 @@
 
 Async no_std driver for the ISSI IS25LP128F 128 Mbit SPI NOR flash.
 
+## Implemented instructions
+
+The driver implements the full Table 6.3 set (instructions requiring WREN) and companion reads. See the [crate documentation](https://docs.rs/is25lp128f) for the opcode → method table. Highlights:
+
+- Read/write/erase (normal, fast read, 4-byte, quad page program), status and configuration registers, SFDP, suspend/resume, deep power-down, software reset.
+- Advanced protection: PPB, DYB, password, lock, freeze, gang lock/unlock, Information Rows, AutoBoot and Bank registers.
+- Helpers: `wait_done_timeout`, `read_operation_errors`, `BlockProtectionLevel`, `StatusWrite::with_block_protection`, `read_fast_with_dummy`, `read_information_row`.
+
 ## Features
 
 - **std** (default): Enable standard library (e.g. for tests).
 - **embedded-storage**: Implement `embedded_storage_async::nor_flash::ReadNorFlash` and `NorFlash`, and `embedded_storage::nor_flash::NorFlashError` for the driver error type. Use with `embedded-storage-async` for async storage abstractions.
 - **spi-device**: Adapter from `embedded_hal_async::SpiDevice<u8>` to this crate's `Spi` trait. Use when your SPI is a device (shared bus + CS), e.g. [embassy-embedded-hal](https://crates.io/crates/embassy-embedded-hal)'s shared SPI.
+- **sfdp**: SFDP header and BFPT parsing (`sfdp::SfdpHeader`, `sfdp::parse_bfpt`) for discovery of sector size, page size, density. Use with `read_sfdp`.
 
 ## embedded-storage compatibility
 

@@ -1,0 +1,54 @@
+# IS25LP128F register definitions (device-driver format).
+# SPI protocol: first byte is opcode; for status we send 0x05 (Read Status) and receive 1 byte.
+# Address in this file is the opcode byte used for the transaction.
+
+config:
+  default_byte_order: BE
+  buffer_address_type: u32
+  command_address_type: u8
+  register_address_type: u8
+
+# Status register: read via opcode 0x05 (Read Status). Datasheet pp. 21-22, 77.
+STATUS_REG:
+  type: register
+  description: Status register (Read Status opcode 0x05)
+  address: 0x05
+  size_bits: 8
+  access: RO
+  fields:
+    BUSY:
+      base: bool
+      start: 0
+      access: RO
+      description: |
+        Write in progress.
+        0 = no operation in progress
+        1 = program/erase operation in progress
+    WEL:
+      base: bool
+      start: 1
+      access: RO
+      description: |
+        Write Enable Latch.
+        0 = not write enabled
+        1 = write enabled
+    PROT:
+      base: uint
+      start: 2
+      end: 6
+      access: RO
+      description: |
+        The 4 protection region bits (block protect configuration).
+    QE:
+      base: bool
+      start: 6
+      access: RO
+      description: Quad Enable.
+    SRWD:
+      base: bool
+      start: 7
+      access: RO
+      description: |
+        Status Register Write Disable.
+        0 = SR writable
+        1 = SR write protected (when WP# is low)

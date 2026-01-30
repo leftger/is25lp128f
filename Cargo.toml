@@ -5,15 +5,29 @@ edition = "2021"
 description = "Async no_std driver for ISSI IS25LP128F 128 Mbit SPI NOR flash"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/leftger/is25lp128f"
-keywords = ["embedded", "flash", "spi", "nor-flash", "async", "no-std"]
+keywords = ["embedded", "flash", "nor-flash", "async", "no-std"]
 categories = ["embedded", "hardware-support", "no-std"]
+include = [
+    "src/**/*.rs",
+    "build.rs",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE*",
+    "src/is25lp128f.yaml",
+]
 
 [dependencies]
-bitflags = "2.6.0"
 modular-bitfield = "0.13.1"
+device-driver = { version = "1.0.3", default-features = false, features = ["yaml"] }
 embedded-storage = { version = "0.3", optional = true }
 embedded-storage-async = { version = "0.4", optional = true }
 embedded-hal-async = { version = "1.0", optional = true }
+
+[build-dependencies]
+device-driver-generation = "1.0.7"
+prettyplease = "0.2.37"
+proc-macro2 = "1.0.103"
+syn = { version = "2.0.111", features = ["full"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
@@ -38,6 +52,8 @@ std = []
 embedded-storage = ["dep:embedded-storage", "dep:embedded-storage-async"]
 # Adapter implementing our Spi for embedded_hal_async::SpiDevice<u8> (e.g. embassy-embedded-hal shared bus)
 spi-device = ["dep:embedded-hal-async"]
+# SFDP/BFPT parsing for discovery (sector size, page size, supported commands)
+sfdp = []
 
 [profile.release]
 debug = 2
