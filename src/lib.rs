@@ -598,18 +598,24 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Write arbitrary-length data at the given address (caller must have erased the region).
     ///
-    /// Writes in page-sized chunks; handles partial pages at the end.
+    /// Splits writes at page boundaries so the hardware page-program wrap-around is never
+    /// triggered.  Handles partial pages at the start and end transparently.
     pub async fn write_bytes(&mut self, offset: u32, data: &[u8]) -> Result<(), Error> {
-        if offset > CHIP_SIZE {
+        if data.is_empty() {
+            return Ok(());
+        }
+        if offset as u64 + data.len() as u64 > CHIP_SIZE as u64 {
             return Err(Error::AddressOutOfBounds(offset as i32));
         }
-        let mut addr = offset as i32;
+        let mut addr = offset;
         let mut remaining = data;
         while !remaining.is_empty() {
-            let chunk_len = remaining.len().min(PAGE_SIZE as usize);
+            // How many bytes remain until the next 256-byte page boundary?
+            let bytes_to_page_end = PAGE_SIZE - (addr % PAGE_SIZE);
+            let chunk_len = remaining.len().min(bytes_to_page_end as usize);
             let (chunk, rest) = remaining.split_at(chunk_len);
-            self.write_page(addr, chunk).await?;
-            addr += chunk_len as i32;
+            self.write_page(addr as i32, chunk).await?;
+            addr += chunk_len as u32;
             remaining = rest;
         }
         Ok(())
@@ -1489,7 +1495,8 @@ mod storage_impl {
 
     #[allow(async_fn_in_trait)]
     impl<S: Spi, H: HardwareInterface> NorFlash for Is25lp128f<S, H> {
-        const WRITE_SIZE: usize = PAGE_SIZE as usize;
+        /// The IS25LP128F supports programming as few as 1 byte at a time.
+        const WRITE_SIZE: usize = 1;
         const ERASE_SIZE: usize = SECTOR_SIZE as usize;
 
         async fn erase(&mut self, from: u32, to: u32) -> Result<(), Self::Error> {
@@ -1509,16 +1516,22 @@ mod storage_impl {
         }
 
         async fn write(&mut self, offset: u32, bytes: &[u8]) -> Result<(), Self::Error> {
-            if offset > CHIP_SIZE {
+            if bytes.is_empty() {
+                return Ok(());
+            }
+            if offset as u64 + bytes.len() as u64 > CHIP_SIZE as u64 {
                 return Err(Error::AddressOutOfBounds(offset as i32));
             }
             let mut remaining = bytes;
-            let mut addr = offset as i32;
+            let mut addr = offset;
             while !remaining.is_empty() {
-                let chunk_len = remaining.len().min(PAGE_SIZE as usize);
+                // Split at the next 256-byte page boundary to avoid the hardware
+                // page-program address wrap-around behaviour.
+                let bytes_to_page_end = PAGE_SIZE - (addr % PAGE_SIZE);
+                let chunk_len = remaining.len().min(bytes_to_page_end as usize);
                 let (chunk, rest) = remaining.split_at(chunk_len);
-                Is25lp128f::write_page(self, addr, chunk).await?;
-                addr += chunk_len as i32;
+                Is25lp128f::write_page(self, addr as i32, chunk).await?;
+                addr += chunk_len as u32;
                 remaining = rest;
             }
             Ok(())
