@@ -1,6 +1,6 @@
 [package]
 name = "is25lp128f"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Async no_std driver for ISSI IS25LP128F 128 Mbit SPI NOR flash"
 license = "MIT OR Apache-2.0"

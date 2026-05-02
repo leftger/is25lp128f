@@ -97,6 +97,12 @@ pub const CHIP_SIZE: u32 = (128 * 1024 * 1024 / 8/* 128 Mbits */);
 // The sector size in bytes; Datasheet p. 14
 pub const SECTOR_SIZE: u32 = 4 * 1024;
 
+/// 32 KiB block size in bytes; Datasheet p. 14
+pub const BLOCK_SIZE_32K: u32 = 32 * 1024;
+
+/// 64 KiB block size in bytes; Datasheet p. 14
+pub const BLOCK_SIZE_64K: u32 = 64 * 1024;
+
 /// Memory map specified starting address; Datasheet p. 14
 pub const START_ADDRESS: u16 = 0x00;
 
@@ -1506,11 +1512,19 @@ mod storage_impl {
             if from % SECTOR_SIZE != 0 || to % SECTOR_SIZE != 0 {
                 return Err(Error::AddressOutOfBounds(from as i32));
             }
-            let mut sector_start = from;
-            while sector_start < to {
-                Is25lp128f::erase(self, FlashEraseSize::EraseSize4K, sector_start as i32)
-                    .await?;
-                sector_start += SECTOR_SIZE;
+            let mut current = from;
+            while current < to {
+                let remaining = to - current;
+                if current % BLOCK_SIZE_64K == 0 && remaining >= BLOCK_SIZE_64K {
+                    Is25lp128f::erase(self, FlashEraseSize::EraseSize64K, current as i32).await?;
+                    current += BLOCK_SIZE_64K;
+                } else if current % BLOCK_SIZE_32K == 0 && remaining >= BLOCK_SIZE_32K {
+                    Is25lp128f::erase(self, FlashEraseSize::EraseSize32K, current as i32).await?;
+                    current += BLOCK_SIZE_32K;
+                } else {
+                    Is25lp128f::erase(self, FlashEraseSize::EraseSize4K, current as i32).await?;
+                    current += SECTOR_SIZE;
+                }
             }
             Ok(())
         }
