@@ -1156,18 +1156,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         Ok(FunctionReg::from([buf[1]]))
     }
 
-    /// Read Function Register (RDFR 48h). Bits: IRL3–IRL0, ESUS, PSUS, TBS, Dedicated RESET# Disable.
-    pub async fn read_function_register(&mut self) -> Result<u8, Error> {
-        let reg = self.read_function_register_fields().await?;
-        Ok(<[u8; 1]>::from(reg)[0])
-    }
-
-    /// Write Function Register (WRFR 42h). Requires WREN. Datasheet Table 6.5–6.6.
-    pub async fn write_function_register(&mut self, value: u8) -> Result<(), Error> {
-        self.write_function_register_fields(FunctionWriteReg::from([value]))
-            .await
-    }
-
     /// Write Function Register (WRFR 42h) from generated field-set payload.
     pub async fn write_function_register_fields(&mut self, value: FunctionWriteReg) -> Result<(), Error> {
         self.enable_write_latch().await?;
@@ -1176,12 +1164,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
             .await?;
         self.wait_done().await?;
         Ok(())
-    }
-
-    /// Set Read Parameters non-volatile (SRPNV 65h). P7–P0: HOLD#/RESET#, dummy cycles, wrap, burst length.
-    pub async fn set_read_parameters_nv(&mut self, value: u8) -> Result<(), Error> {
-        self.set_read_parameters_nv_fields(ReadParamsNvReg::from([value]))
-            .await
     }
 
     /// Set Read Parameters non-volatile (SRPNV 65h) from high-level helper fields.
@@ -1198,12 +1180,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
             .await?;
         self.wait_done().await?;
         Ok(())
-    }
-
-    /// Set Read Parameters volatile (SRPV 63h).
-    pub async fn set_read_parameters_volatile(&mut self, value: u8) -> Result<(), Error> {
-        self.set_read_parameters_volatile_fields(ReadParamsVolatileReg::from([value]))
-            .await
     }
 
     /// Set Read Parameters volatile (SRPV 63h) from high-level helper fields.
@@ -1238,19 +1214,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         Ok(ReadReg::from([buf[1]]))
     }
 
-    /// Read Read Register (opcode 0Fh). P7–P0 per datasheet Table 6.7–6.8.
-    pub async fn read_read_register(&mut self) -> Result<u8, Error> {
-        let reg = self.read_read_register_fields().await?;
-        Ok(<[u8; 1]>::from(reg)[0])
-    }
-
-    /// Set Extended Read Parameters non-volatile (SERPNV 85h). Only ODS (EB7:5) is writable; EB4:0 are read-only.
-    /// Datasheet Table 6.12–6.13.
-    pub async fn set_extended_read_parameters_nv(&mut self, value: u8) -> Result<(), Error> {
-        self.set_extended_read_parameters_nv_fields(ExtendedReadParamsNvReg::from([value]))
-            .await
-    }
-
     /// Set Extended Read Parameters non-volatile (SERPNV 85h) from generated field-set payload.
     pub async fn set_extended_read_parameters_nv_fields(
         &mut self,
@@ -1265,12 +1228,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
             .await?;
         self.wait_done().await?;
         Ok(())
-    }
-
-    /// Set Extended Read Parameters volatile (SERPV 83h). Only ODS (EB7:5) is writable.
-    pub async fn set_extended_read_parameters_volatile(&mut self, value: u8) -> Result<(), Error> {
-        self.set_extended_read_parameters_volatile_fields(ExtendedReadParamsVolatileReg::from([value]))
-            .await
     }
 
     /// Set Extended Read Parameters volatile (SERPV 83h) from generated field-set payload.
@@ -1336,18 +1293,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         Ok(AutobootReg::from([buf[1]]))
     }
 
-    /// Read AutoBoot Register (RDABR 14h). Table 6.3 companion read for WRABR.
-    pub async fn read_autoboot_register(&mut self) -> Result<u8, Error> {
-        let reg = self.read_autoboot_register_fields().await?;
-        Ok(<[u8; 1]>::from(reg)[0])
-    }
-
-    /// Write AutoBoot Register (WRABR 15h). Table 6.3. Requires WREN.
-    pub async fn write_autoboot_register(&mut self, value: u8) -> Result<(), Error> {
-        self.write_autoboot_register_fields(AutobootWriteReg::from([value]))
-            .await
-    }
-
     /// Write AutoBoot Register (WRABR 15h) from generated field-set payload.
     pub async fn write_autoboot_register_fields(&mut self, value: AutobootWriteReg) -> Result<(), Error> {
         self.enable_write_latch().await?;
@@ -1365,18 +1310,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         Ok(BankReg::from([buf[1]]))
     }
 
-    /// Read Bank Address Register (RDBR 16h). EXTADD (3- vs 4-byte addressing) in bit 7.
-    pub async fn read_bank_register(&mut self) -> Result<u8, Error> {
-        let reg = self.read_bank_register_fields().await?;
-        Ok(<[u8; 1]>::from(reg)[0])
-    }
-
-    /// Write non-volatile Bank Address Register (WRBRNV 18h). Table 6.3. Requires WREN.
-    pub async fn write_bank_register_nv(&mut self, value: u8) -> Result<(), Error> {
-        self.write_bank_register_nv_fields(BankWriteNvReg::from([value]))
-            .await
-    }
-
     /// Write non-volatile Bank Address Register (WRBRNV 18h) from generated field-set payload.
     pub async fn write_bank_register_nv_fields(&mut self, value: BankWriteNvReg) -> Result<(), Error> {
         self.enable_write_latch().await?;
@@ -1385,12 +1318,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
             .await?;
         self.wait_done().await?;
         Ok(())
-    }
-
-    /// Write volatile Bank Address Register (WRBRV C5h). Table 6.3. Requires WREN.
-    pub async fn write_bank_register_volatile(&mut self, value: u8) -> Result<(), Error> {
-        self.write_bank_register_volatile_fields(BankWriteVolatileReg::from([value]))
-            .await
     }
 
     /// Write volatile Bank Address Register (WRBRV C5h) from generated field-set payload.
@@ -1407,12 +1334,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
             .await?;
         self.wait_done().await?;
         Ok(())
-    }
-
-    /// Write volatile Bank Address Register without WREN (WRBRV 17h). Table 6.3 Note 2.
-    pub async fn write_bank_register_volatile_no_wren(&mut self, value: u8) -> Result<(), Error> {
-        self.write_bank_register_volatile_no_wren_fields(BankWriteVolatileNoWrenReg::from([value]))
-            .await
     }
 
     /// Write volatile Bank Address Register without WREN (WRBRV 17h) from generated field-set payload.
@@ -1439,12 +1360,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         Ok(AspReg::from(data_buf))
     }
 
-    /// Read Advanced Sector/Block Protection Register (RDASP 2Bh). 2 bytes.
-    pub async fn read_asp(&mut self) -> Result<[u8; 2], Error> {
-        let reg = self.read_asp_fields().await?;
-        Ok(<[u8; 2]>::from(reg))
-    }
-
     /// Program ASP (PGASP 2Fh). Requires WREN. Datasheet Table 6.19–6.20.
     pub async fn program_asp(&mut self, value: [u8; 2]) -> Result<(), Error> {
         self.enable_write_latch().await?;
@@ -1460,12 +1375,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         let mut data_buf = [0u8; 8];
         self.spi.read(&cmd_buf, &mut data_buf).await?;
         Ok(PasswordReg::from(data_buf))
-    }
-
-    /// Read Password (RDPWD E7h). 8 bytes. Only readable before password protection mode is selected.
-    pub async fn read_password(&mut self) -> Result<[u8; 8], Error> {
-        let reg = self.read_password_fields().await?;
-        Ok(<[u8; 8]>::from(reg))
     }
 
     /// Program Password (PGPWD E8h). Requires WREN. 8 bytes. OTP.
@@ -1494,17 +1403,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         let mut buf = [Opcode::RdPpbLock as u8, 0];
         self.spi.transfer_in_place(&mut buf).await?;
         Ok(PpbLockReg::from([buf[1]]))
-    }
-
-    /// Read PPB Lock Bit (RDPLB A7h). Returns one byte (PPBLK, FREEZE, etc.). Datasheet Table 6.22.
-    pub async fn read_ppb_lock(&mut self) -> Result<u8, Error> {
-        let reg = self.read_ppb_lock_fields().await?;
-        Ok(<[u8; 1]>::from(reg)[0])
-    }
-
-    /// Write PPB Lock Bit (WRPLB A6h). Clears PPB Lock to 0 (locks PPBs). Requires WREN.
-    pub async fn write_ppb_lock(&mut self, value: u8) -> Result<(), Error> {
-        self.write_ppb_lock_fields(PpbLockWriteReg::from([value])).await
     }
 
     /// Write PPB Lock Bit (WRPLB A6h) from generated field-set payload.
@@ -1586,11 +1484,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         let mut data_buf = [0u8; 1];
         self.spi.read(&cmd_buf, &mut data_buf).await?;
         Ok(DybReg::from(data_buf))
-    }
-
-    /// Write DYB for sector/block (WRDYB FBh). 0 = protect, 0xFF = unprotect. Requires WREN.
-    pub async fn write_dyb(&mut self, address: i32, value: u8) -> Result<(), Error> {
-        self.write_dyb_fields(address, DybWriteReg::from([value])).await
     }
 
     /// Write DYB for sector/block (WRDYB FBh) from generated field-set payload.
@@ -1685,12 +1578,6 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         let mut data_buf = [0u8; 1];
         self.spi.read(&cmd_buf, &mut data_buf).await?;
         Ok(DybReg::from(data_buf))
-    }
-
-    /// Write DYB with 4-byte address (4WRDYB E1h).
-    pub async fn write_dyb_4byte(&mut self, address: u32, value: u8) -> Result<(), Error> {
-        self.write_dyb_4byte_fields(address, DybWriteReg::from([value]))
-            .await
     }
 
     /// Write DYB with 4-byte address (4WRDYB E1h) from generated field-set payload.
