@@ -52,3 +52,588 @@ STATUS_REG:
         Status Register Write Disable.
         0 = SR writable
         1 = SR write protected (when WP# is low)
+
+# Writable status payload: write via opcode 0x01 (WRSR).
+STATUS_WRITE_REG:
+  type: register
+  description: Status register writable payload (Write Status opcode 0x01)
+  address: 0x01
+  size_bits: 8
+  fields:
+    BP:
+      base: uint
+      start: 2
+      end: 6
+      access: RW
+      description: Block protection bits BP3..BP0.
+      try_conversion:
+        name: BP
+        None: { value: 0b0000, description: "No blocks protected." }
+        TopBottom1Block: { value: 0b0001, description: "Protect 1 block (top or bottom per TBS)." }
+        TopBottom2Blocks: { value: 0b0010, description: "Protect 2 blocks (top or bottom per TBS)." }
+        TopBottom4Blocks: { value: 0b0011, description: "Protect 4 blocks (top or bottom per TBS)." }
+        TopBottom8Blocks: { value: 0b0100, description: "Protect 8 blocks (top or bottom per TBS)." }
+        TopBottom16Blocks: { value: 0b0101, description: "Protect 16 blocks (top or bottom per TBS)." }
+        TopBottom32Blocks: { value: 0b0110, description: "Protect 32 blocks (top or bottom per TBS)." }
+        TopBottom64Blocks: { value: 0b0111, description: "Protect 64 blocks (top or bottom per TBS)." }
+        TopBottom128Blocks: { value: 0b1000, description: "Protect 128 blocks (top or bottom per TBS)." }
+        AllBlocks: { value: 0b1001, description: "Protect all blocks." }
+    QE:
+      base: bool
+      start: 6
+      access: RW
+      description: Quad enable.
+    SRWD:
+      base: bool
+      start: 7
+      access: RW
+      description: Status register write disable.
+
+# Function register: read via opcode 0x48 (RDFR), write via opcode 0x42 (WRFR).
+FUNCTION_REG:
+  type: register
+  description: Function register (Read Function Register opcode 0x48)
+  address: 0x48
+  size_bits: 8
+  access: RO
+  fields:
+    DRST:
+      base: bool
+      start: 0
+      access: RO
+      description: Dedicated RESET# disable status.
+    TBS:
+      base: bool
+      start: 1
+      access: RO
+      description: Top/bottom protection region selection.
+    PSUS:
+      base: bool
+      start: 2
+      access: RO
+      description: Program suspend status.
+    ESUS:
+      base: bool
+      start: 3
+      access: RO
+      description: Erase suspend status.
+    IRL:
+      base: uint
+      start: 4
+      end: 8
+      access: RO
+      description: Information Row Lock bits (IRL3..IRL0).
+
+# Function register writable payload: write via opcode 0x42 (WRFR).
+FUNCTION_WRITE_REG:
+  type: register
+  description: Function register writable payload (Write Function Register opcode 0x42)
+  address: 0x42
+  size_bits: 8
+  fields:
+    DRST:
+      base: bool
+      start: 0
+      access: RW
+      description: Dedicated RESET# disable control.
+    TBS:
+      base: bool
+      start: 1
+      access: RW
+      description: Top/bottom region protected selection for BP bits.
+    PSUS:
+      base: bool
+      start: 2
+      access: RO
+      description: Program suspend status (read-only).
+    ESUS:
+      base: bool
+      start: 3
+      access: RO
+      description: Erase suspend status (read-only).
+    IRL:
+      base: uint
+      start: 4
+      end: 8
+      access: RW
+      description: Information Row Lock bits (IRL3..IRL0, OTP semantics).
+
+# Read register: read via opcode 0x0F.
+READ_REG:
+  type: register
+  description: Read register (Read Read Register opcode 0x0F)
+  address: 0x0F
+  size_bits: 8
+  access: RO
+  fields:
+    BURST_LENGTH:
+      base: bool
+      start: 0
+      access: RO
+      description: Burst length bit 0.
+    BURST_LENGTH_MSB:
+      base: bool
+      start: 1
+      access: RO
+      description: Burst length bit 1.
+    WRAP_ENABLE:
+      base: bool
+      start: 2
+      access: RO
+      description: Wrap/burst-length set enable.
+    DUMMY_CYCLES:
+      base: uint
+      start: 3
+      end: 7
+      access: RO
+      description: Dummy cycles selection bits P[6:3].
+    HOLD_RST:
+      base: bool
+      start: 7
+      access: RO
+      description: HOLD#/RESET# function selection.
+
+# Extended read register: read via opcode 0x4F.
+EXTENDED_READ_REG:
+  type: register
+  description: Extended read register (Read Extended Read Register opcode 0x4F)
+  address: 0x4F
+  size_bits: 8
+  access: RO
+  fields:
+    WIP:
+      base: bool
+      start: 0
+      access: RO
+      description: Write in progress mirror.
+    PROT_E:
+      base: bool
+      start: 1
+      access: RO
+      description: Protection error.
+    P_ERR:
+      base: bool
+      start: 2
+      access: RO
+      description: Program error.
+    E_ERR:
+      base: bool
+      start: 3
+      access: RO
+      description: Erase error.
+    ODS:
+      base: uint
+      start: 5
+      end: 8
+      access: RO
+      description: Output driver strength bits.
+
+# AutoBoot register: read via opcode 0x14 (RDABR), write via opcode 0x15 (WRABR).
+AUTOBOOT_REG:
+  type: register
+  description: AutoBoot register (Read AutoBoot Register opcode 0x14)
+  address: 0x14
+  size_bits: 8
+  access: RO
+
+# AutoBoot register writable payload (WRABR 0x15).
+AUTOBOOT_WRITE_REG:
+  type: register
+  description: AutoBoot register writable payload (Write AutoBoot Register opcode 0x15)
+  address: 0x15
+  size_bits: 8
+  fields:
+    ABE:
+      base: bool
+      start: 0
+      access: RW
+      description: AutoBoot enable bit.
+    ABSD:
+      base: uint
+      start: 1
+      end: 5
+      access: RW
+      description: AutoBoot start delay bits.
+    ABSA_PART:
+      base: uint
+      start: 5
+      end: 8
+      access: RW
+      description: Lower AutoBoot start-address bits present in this byte payload.
+
+# Bank register: read via opcode 0x16 (RDBR), write via opcodes 0x18/C5/17.
+BANK_REG:
+  type: register
+  description: Bank register (Read Bank Register opcode 0x16)
+  address: 0x16
+  size_bits: 8
+  access: RO
+  fields:
+    BA24:
+      base: bool
+      start: 0
+      access: RO
+      description: Address bit A24 in 3-byte mode.
+    BA25:
+      base: bool
+      start: 1
+      access: RO
+      description: Address bit A25 in 3-byte mode.
+    BA26:
+      base: bool
+      start: 2
+      access: RO
+      description: Address bit A26 in 3-byte mode.
+    BA27:
+      base: bool
+      start: 3
+      access: RO
+      description: Address bit A27 in 3-byte mode.
+    BA28:
+      base: bool
+      start: 4
+      access: RO
+      description: Address bit A28 in 3-byte mode.
+    BA29:
+      base: bool
+      start: 5
+      access: RO
+      description: Address bit A29 in 3-byte mode.
+    EXTADD:
+      base: bool
+      start: 7
+      access: RO
+      description: 4-byte address mode selection.
+
+# Bank register writable payload (WRBRNV 0x18).
+BANK_WRITE_NV_REG:
+  type: register
+  description: Bank register writable payload NV (Write Bank Register NV opcode 0x18)
+  address: 0x18
+  size_bits: 8
+  fields:
+    EXTADD:
+      base: bool
+      start: 7
+      access: RW
+      description: 3-byte/4-byte addressing selection.
+
+# Bank register writable payload (WRBRV 0xC5).
+BANK_WRITE_VOLATILE_REG:
+  type: register
+  description: Bank register writable payload volatile (Write Bank Register Volatile opcode 0xC5)
+  address: 0xC5
+  size_bits: 8
+  fields:
+    EXTADD:
+      base: bool
+      start: 7
+      access: RW
+      description: 3-byte/4-byte addressing selection.
+
+# Bank register writable payload without WREN (WRBRV 0x17).
+BANK_WRITE_VOLATILE_NO_WREN_REG:
+  type: register
+  description: Bank register writable payload volatile no-WREN (Write Bank Register Volatile opcode 0x17)
+  address: 0x17
+  size_bits: 8
+  fields:
+    EXTADD:
+      base: bool
+      start: 7
+      access: RW
+      description: 3-byte/4-byte addressing selection.
+
+# PPB lock register: read via opcode 0xA7 (RDPLB), write via opcode 0xA6 (WRPLB).
+PPB_LOCK_REG:
+  type: register
+  description: PPB lock register (Read PPB Lock opcode 0xA7)
+  address: 0xA7
+  size_bits: 8
+  access: RO
+  fields:
+    PPBLK:
+      base: bool
+      start: 0
+      access: RO
+      description: PPB lock state.
+    FREEZE:
+      base: bool
+      start: 1
+      access: RO
+      description: Freeze state for lock configuration.
+
+# PPB lock register writable payload (WRPLB 0xA6).
+PPB_LOCK_WRITE_REG:
+  type: register
+  description: PPB lock writable payload (Write PPB Lock opcode 0xA6)
+  address: 0xA6
+  size_bits: 8
+  fields:
+    PPBLK:
+      base: bool
+      start: 0
+      access: RW
+      description: PPB lock bit (WRPLB clears this to 0 in persistent mode).
+    FREEZE:
+      base: bool
+      start: 7
+      access: RW
+      description: Freeze bit (normally set by SFRZ command).
+
+# Read parameter writable payloads (SRPV/SRPNV).
+READ_PARAMS_VOLATILE_REG:
+  type: register
+  description: Read parameters writable payload volatile (Set Read Parameters Volatile opcode 0x63)
+  address: 0x63
+  size_bits: 8
+  fields:
+    BURST_LENGTH:
+      base: bool
+      start: 0
+      access: RW
+      description: Burst length bit 0.
+    BURST_LENGTH_MSB:
+      base: bool
+      start: 1
+      access: RW
+      description: Burst length bit 1.
+    WRAP_ENABLE:
+      base: bool
+      start: 2
+      access: RW
+      description: Wrap/burst-length set enable.
+    DUMMY_CYCLES:
+      base: uint
+      start: 3
+      end: 7
+      access: RW
+      description: Dummy cycles selection P[6:3] (0 default, 1..15 cycles).
+    HOLD_RST:
+      base: bool
+      start: 7
+      access: RW
+      description: HOLD#/RESET# function selection.
+
+READ_PARAMS_NV_REG:
+  type: register
+  description: Read parameters writable payload non-volatile (Set Read Parameters NV opcode 0x65)
+  address: 0x65
+  size_bits: 8
+  fields:
+    BURST_LENGTH:
+      base: bool
+      start: 0
+      access: RW
+      description: Burst length bit 0.
+    BURST_LENGTH_MSB:
+      base: bool
+      start: 1
+      access: RW
+      description: Burst length bit 1.
+    WRAP_ENABLE:
+      base: bool
+      start: 2
+      access: RW
+      description: Wrap/burst-length set enable.
+    DUMMY_CYCLES:
+      base: uint
+      start: 3
+      end: 7
+      access: RW
+      description: Dummy cycles selection P[6:3] (0 default, 1..15 cycles).
+    HOLD_RST:
+      base: bool
+      start: 7
+      access: RW
+      description: HOLD#/RESET# function selection.
+
+# Extended read parameter writable payloads (SERPV/SERPNV).
+EXTENDED_READ_PARAMS_VOLATILE_REG:
+  type: register
+  description: Extended read params writable payload volatile (Set Extended Read Parameters Volatile opcode 0x83)
+  address: 0x83
+  size_bits: 8
+  fields:
+    ODS:
+      base: uint
+      start: 5
+      end: 8
+      access: RW
+      description: Output driver strength bits.
+      try_conversion:
+        name: EXT_READ_PARAMS_VOLATILE_ODS
+        P12_5: { value: 0b001, description: "12.5% driver strength." }
+        P25: { value: 0b010, description: "25% driver strength." }
+        P37_5: { value: 0b011, description: "37.5% driver strength." }
+        P75: { value: 0b101, description: "75% driver strength." }
+        P100: { value: 0b110, description: "100% driver strength." }
+        P50: { value: 0b111, description: "50% driver strength (default)." }
+
+EXTENDED_READ_PARAMS_NV_REG:
+  type: register
+  description: Extended read params writable payload non-volatile (Set Extended Read Parameters NV opcode 0x85)
+  address: 0x85
+  size_bits: 8
+  fields:
+    ODS:
+      base: uint
+      start: 5
+      end: 8
+      access: RW
+      description: Output driver strength bits.
+      try_conversion:
+        name: EXT_READ_PARAMS_NV_ODS
+        P12_5: { value: 0b001, description: "12.5% driver strength." }
+        P25: { value: 0b010, description: "25% driver strength." }
+        P37_5: { value: 0b011, description: "37.5% driver strength." }
+        P75: { value: 0b101, description: "75% driver strength." }
+        P100: { value: 0b110, description: "100% driver strength." }
+        P50: { value: 0b111, description: "50% driver strength (default)." }
+
+# ASP register payload: read via opcode 0x2B (RDASP), returns 2 bytes.
+ASP_REG:
+  type: register
+  description: Advanced Sector/Block Protection payload (Read ASP opcode 0x2B)
+  address: 0x2B
+  size_bits: 16
+  access: RO
+  fields:
+    PSTMLB:
+      base: bool
+      start: 1
+      access: RO
+      description: Persistent Protection Mode Lock Bit.
+    PWDMLB:
+      base: bool
+      start: 2
+      access: RO
+      description: Password Protection Mode Lock Bit.
+    TBPARM:
+      base: bool
+      start: 15
+      access: RO
+      description: Parameter-sector location select (0 top, 1 bottom).
+
+# Password payload: read via opcode 0xE7 (RDPWD), returns 8 bytes.
+PASSWORD_REG:
+  type: register
+  description: Password payload (Read Password opcode 0xE7)
+  address: 0xE7
+  size_bits: 64
+  access: RO
+  fields:
+    PSWD:
+      base: uint
+      start: 0
+      end: 64
+      access: RO
+      description: 64-bit password value.
+
+# JEDEC ID payload: read via opcode 0x9F (RDID), returns 3 bytes.
+JEDEC_ID_REG:
+  type: register
+  description: JEDEC ID payload (Read JEDEC ID opcode 0x9F)
+  address: 0x9F
+  size_bits: 24
+  access: RO
+  fields:
+    MFR_CODE:
+      base: uint
+      start: 0
+      end: 8
+      access: RO
+      description: JEDEC manufacturer code byte.
+    MEMORY_TYPE:
+      base: uint
+      start: 8
+      end: 16
+      access: RO
+      description: JEDEC memory type byte.
+    CAPACITY:
+      base: uint
+      start: 16
+      end: 24
+      access: RO
+      description: JEDEC capacity/device ID byte.
+
+# Unique ID payload: read via opcode 0x4B (RDUID), returns 16 bytes.
+UNIQUE_ID_REG:
+  type: register
+  description: Unique ID payload (Read Unique ID opcode 0x4B)
+  address: 0x4B
+  size_bits: 128
+  access: RO
+  fields:
+    BYTE0: { base: uint, start: 0, end: 8, access: RO, description: Unique ID byte 0. }
+    BYTE1: { base: uint, start: 8, end: 16, access: RO, description: Unique ID byte 1. }
+    BYTE2: { base: uint, start: 16, end: 24, access: RO, description: Unique ID byte 2. }
+    BYTE3: { base: uint, start: 24, end: 32, access: RO, description: Unique ID byte 3. }
+    BYTE4: { base: uint, start: 32, end: 40, access: RO, description: Unique ID byte 4. }
+    BYTE5: { base: uint, start: 40, end: 48, access: RO, description: Unique ID byte 5. }
+    BYTE6: { base: uint, start: 48, end: 56, access: RO, description: Unique ID byte 6. }
+    BYTE7: { base: uint, start: 56, end: 64, access: RO, description: Unique ID byte 7. }
+    BYTE8: { base: uint, start: 64, end: 72, access: RO, description: Unique ID byte 8. }
+    BYTE9: { base: uint, start: 72, end: 80, access: RO, description: Unique ID byte 9. }
+    BYTE10: { base: uint, start: 80, end: 88, access: RO, description: Unique ID byte 10. }
+    BYTE11: { base: uint, start: 88, end: 96, access: RO, description: Unique ID byte 11. }
+    BYTE12: { base: uint, start: 96, end: 104, access: RO, description: Unique ID byte 12. }
+    BYTE13: { base: uint, start: 104, end: 112, access: RO, description: Unique ID byte 13. }
+    BYTE14: { base: uint, start: 112, end: 120, access: RO, description: Unique ID byte 14. }
+    BYTE15: { base: uint, start: 120, end: 128, access: RO, description: Unique ID byte 15. }
+
+# Per-sector/block PPB payload (RDPPB/PGPPB): 00h protected, FFh unprotected.
+PPB_REG:
+  type: register
+  description: Persistent Protection Bit payload (Read/Program PPB opcodes 0xFC/0xFD and 0xE2/0xE3)
+  address: 0xFC
+  size_bits: 8
+  access: RO
+  fields:
+    PPB:
+      base: uint
+      start: 0
+      end: 8
+      access: RO
+      description: PPB state value (00h protected, FFh unprotected).
+
+PPB_WRITE_REG:
+  type: register
+  description: PPB writable payload (Program PPB opcodes 0xFD/0xE3)
+  address: 0xFD
+  size_bits: 8
+  fields:
+    PPB:
+      base: uint
+      start: 0
+      end: 8
+      access: RW
+      description: PPB write value (typically 00h to protect).
+
+# Per-sector/block DYB payload (RDDYB/WRDYB): 00h protected, FFh unprotected.
+DYB_REG:
+  type: register
+  description: Dynamic Protection Bit payload (Read/Write DYB opcodes 0xFA/0xFB and 0xE0/0xE1)
+  address: 0xFA
+  size_bits: 8
+  access: RO
+  fields:
+    DYB:
+      base: uint
+      start: 0
+      end: 8
+      access: RO
+      description: DYB state value (00h protected, FFh unprotected).
+
+DYB_WRITE_REG:
+  type: register
+  description: DYB writable payload (Write DYB opcodes 0xFB/0xE1)
+  address: 0xFB
+  size_bits: 8
+  fields:
+    DYB:
+      base: uint
+      start: 0
+      end: 8
+      access: RW
+      description: DYB write value (00h protect, FFh unprotect).

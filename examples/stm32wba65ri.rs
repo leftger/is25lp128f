@@ -14,9 +14,11 @@
 //! probe-rs run --chip STM32WBA65RI target/thumbv8m.main-none-eabihf/release/examples/stm32wba65ri
 //! ```
 
-#![no_std]
-#![no_main]
+#![cfg_attr(all(target_arch = "arm", target_os = "none"), no_std)]
+#![cfg_attr(all(target_arch = "arm", target_os = "none"), no_main)]
 
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+mod embedded_example {
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_stm32::{
@@ -178,4 +180,13 @@ async fn main(_spawner: Spawner) {
     }
 
     info!("Example done.");
+}
+}
+
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+fn main() {
+    eprintln!(
+        "This example targets STM32 (arm-none). Build with \
+         --target thumbv8m.main-none-eabihf and --features embedded-storage."
+    );
 }

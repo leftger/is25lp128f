@@ -85,6 +85,13 @@ mod generated {
     include!(concat!(env!("OUT_DIR"), "/is25lp128f_device.rs"));
 }
 pub use generated::field_sets::StatusReg as Status;
+pub use generated::field_sets::{
+    AspReg, AutobootReg, AutobootWriteReg, BankReg, BankWriteNvReg, BankWriteVolatileNoWrenReg,
+    BankWriteVolatileReg, DybReg, DybWriteReg, ExtendedReadParamsNvReg,
+    ExtendedReadParamsVolatileReg, ExtendedReadReg, FunctionReg, FunctionWriteReg, JedecIdReg,
+    PasswordReg, PpbLockReg, PpbLockWriteReg, PpbReg, PpbWriteReg, ReadParamsNvReg,
+    ReadParamsVolatileReg, ReadReg, StatusWriteReg, UniqueIdReg,
+};
 
 use modular_bitfield::prelude::*;
 
@@ -337,6 +344,88 @@ impl DriverStrength {
     }
 }
 
+/// Read-parameter payload helper (SRPV/SRPNV).
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
+pub struct ReadParameters {
+    /// Read burst length bits P1:P0.
+    pub burst_length: u8,
+    /// Wrap/burst-length set enable bit P2.
+    pub wrap_enable: bool,
+    /// Dummy-cycle selector bits P6:P3.
+    pub dummy_cycles: u8,
+    /// HOLD#/RESET# selection bit P7.
+    pub hold_reset: bool,
+}
+
+impl ReadParameters {
+    #[must_use]
+    pub fn to_byte(self) -> u8 {
+        let burst_length = self.burst_length & 0x03;
+        let wrap_enable = (self.wrap_enable as u8) << 2;
+        let dummy_cycles = (self.dummy_cycles & 0x0F) << 3;
+        let hold_reset = (self.hold_reset as u8) << 7;
+        burst_length | wrap_enable | dummy_cycles | hold_reset
+    }
+
+    #[must_use]
+    pub fn from_byte(value: u8) -> Self {
+        Self {
+            burst_length: value & 0x03,
+            wrap_enable: (value & 0x04) != 0,
+            dummy_cycles: (value >> 3) & 0x0F,
+            hold_reset: (value & 0x80) != 0,
+        }
+    }
+}
+
+impl From<ReadParameters> for ReadParamsNvReg {
+    fn from(value: ReadParameters) -> Self {
+        Self::from([value.to_byte()])
+    }
+}
+
+impl From<ReadParameters> for ReadParamsVolatileReg {
+    fn from(value: ReadParameters) -> Self {
+        Self::from([value.to_byte()])
+    }
+}
+
+impl From<ReadParamsNvReg> for ReadParameters {
+    fn from(value: ReadParamsNvReg) -> Self {
+        Self::from_byte(<[u8; 1]>::from(value)[0])
+    }
+}
+
+impl From<ReadParamsVolatileReg> for ReadParameters {
+    fn from(value: ReadParamsVolatileReg) -> Self {
+        Self::from_byte(<[u8; 1]>::from(value)[0])
+    }
+}
+
+impl From<DriverStrength> for ExtendedReadParamsNvReg {
+    fn from(value: DriverStrength) -> Self {
+        Self::from([value.to_register_byte()])
+    }
+}
+
+impl From<DriverStrength> for ExtendedReadParamsVolatileReg {
+    fn from(value: DriverStrength) -> Self {
+        Self::from([value.to_register_byte()])
+    }
+}
+
+impl From<StatusWrite> for StatusWriteReg {
+    fn from(value: StatusWrite) -> Self {
+        Self::from([value.to_byte()])
+    }
+}
+
+impl From<StatusWriteReg> for StatusWrite {
+    fn from(value: StatusWriteReg) -> Self {
+        Self::from_status_byte(<[u8; 1]>::from(value)[0])
+    }
+}
+
 /// Extended Read Register contents (opcode 4Fh). Table 6.12–6.13.
 ///
 /// EB7, EB6, EB5 (ODS) are writable via SERPNV/SERPV. EB4 is reserved. EB3:0 are read-only
@@ -359,19 +448,26 @@ impl ExtendedReadStatus {
     /// Build from the raw Extended Read Register byte.
     #[must_use]
     pub fn from_byte(b: u8) -> Self {
-        Self {
-            wip: (b & 1) != 0,
-            protection_error: (b & (1 << 1)) != 0,
-            program_error: (b & (1 << 2)) != 0,
-            erase_error: (b & (1 << 3)) != 0,
-            driver_strength: DriverStrength::from_register_byte(b),
-        }
+        Self::from(ExtendedReadReg::from([b]))
     }
 
     /// True if any operation error bit is set (P_ERR, E_ERR, or PROT_E).
     #[must_use]
     pub const fn has_error(self) -> bool {
         self.protection_error || self.program_error || self.erase_error
+    }
+}
+
+impl From<ExtendedReadReg> for ExtendedReadStatus {
+    fn from(reg: ExtendedReadReg) -> Self {
+        let [raw] = <[u8; 1]>::from(reg);
+        Self {
+            wip: reg.wip(),
+            protection_error: reg.prot_e(),
+            program_error: reg.p_err(),
+            erase_error: reg.e_err(),
+            driver_strength: DriverStrength::from_register_byte(raw),
+        }
     }
 }
 
@@ -687,18 +783,31 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
     /// Read JEDEC manufacturer and device identification (RDID 9Fh).
     /// Returns the 3-byte ID (manufacturer, memory type, capacity).
     pub async fn read_jedec_id(&mut self) -> Result<JedecId, Error> {
+        let reg = self.read_jedec_id_fields().await?;
+        let bytes = <[u8; 3]>::from(reg);
+        Ok(JedecId::from_bytes(bytes))
+    }
+
+    /// Read JEDEC ID as YAML-generated field-set payload.
+    pub async fn read_jedec_id_fields(&mut self) -> Result<JedecIdReg, Error> {
         let mut buf = [Opcode::FlashID as u8, 0, 0, 0];
         self.spi.transfer_in_place(&mut buf).await?;
-        Ok(JedecId::from_bytes([buf[1], buf[2], buf[3]]))
+        Ok(JedecIdReg::from([buf[1], buf[2], buf[3]]))
     }
 
     pub async fn read_unique_id(&mut self) -> Result<[u8; 16], Error> {
+        let reg = self.read_unique_id_fields().await?;
+        Ok(<[u8; 16]>::from(reg))
+    }
+
+    /// Read unique ID as YAML-generated field-set payload.
+    pub async fn read_unique_id_fields(&mut self) -> Result<UniqueIdReg, Error> {
         // RDUID command: 4Bh + 3 dummy address bytes + 8 dummy clocks + 16 data bytes
         let mut cmd_buf = [0u8; 5];
         cmd_buf[0] = Opcode::ReadUniqueID as u8;
         let mut data_buf = [0u8; 16];
         self.spi.read(&cmd_buf, &mut data_buf).await?;
-        Ok(data_buf)
+        Ok(UniqueIdReg::from(data_buf))
     }
 
     // --- 1. Write Status Register (WRSR) ---
@@ -706,8 +815,14 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
     /// Write the status register (WRSR 01h). Writes BP0–BP3, QE, SRWD (non-volatile).
     /// Precedes with WREN. Datasheet Table 6.3.
     pub async fn write_status(&mut self, value: StatusWrite) -> Result<(), Error> {
+        let reg = StatusWriteReg::from(value);
+        self.write_status_fields(reg).await
+    }
+
+    /// Write the status register from a generated field-set payload.
+    pub async fn write_status_fields(&mut self, value: StatusWriteReg) -> Result<(), Error> {
         self.enable_write_latch().await?;
-        let buf = [Opcode::WriteStatus as u8, value.to_byte()];
+        let buf = [Opcode::WriteStatus as u8, <[u8; 1]>::from(value)[0]];
         self.spi.write(&buf).await?;
         self.wait_done().await?;
         Ok(())
@@ -716,9 +831,15 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
     /// Write the volatile status register. Uses VSRWE (50h) then WRSR (01h); does not set WEL.
     /// Datasheet: "Volatile Status Register Write Enable (50h) instruction is required..."
     pub async fn write_status_volatile(&mut self, value: StatusWrite) -> Result<(), Error> {
+        let reg = StatusWriteReg::from(value);
+        self.write_status_volatile_fields(reg).await
+    }
+
+    /// Write volatile status register from a generated field-set payload.
+    pub async fn write_status_volatile_fields(&mut self, value: StatusWriteReg) -> Result<(), Error> {
         let buf_vsrwe = [Opcode::VolatileStatusWriteEnable as u8];
         self.spi.write(&buf_vsrwe).await?;
-        let buf_wrsr = [Opcode::WriteStatus as u8, value.to_byte()];
+        let buf_wrsr = [Opcode::WriteStatus as u8, <[u8; 1]>::from(value)[0]];
         self.spi.write(&buf_wrsr).await?;
         self.wait_done().await?;
         Ok(())
@@ -1028,57 +1149,142 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     // --- 8. Function / Read / Extended Read registers ---
 
-    /// Read Function Register (RDFR 48h). Bits: IRL3–IRL0, ESUS, PSUS, TBS, Dedicated RESET# Disable.
-    pub async fn read_function_register(&mut self) -> Result<u8, Error> {
+    /// Read Function Register (RDFR 48h) decoded into generated bitfields.
+    pub async fn read_function_register_fields(&mut self) -> Result<FunctionReg, Error> {
         let mut buf = [Opcode::ReadFunctionReg as u8, 0];
         self.spi.transfer_in_place(&mut buf).await?;
-        Ok(buf[1])
+        Ok(FunctionReg::from([buf[1]]))
+    }
+
+    /// Read Function Register (RDFR 48h). Bits: IRL3–IRL0, ESUS, PSUS, TBS, Dedicated RESET# Disable.
+    pub async fn read_function_register(&mut self) -> Result<u8, Error> {
+        let reg = self.read_function_register_fields().await?;
+        Ok(<[u8; 1]>::from(reg)[0])
     }
 
     /// Write Function Register (WRFR 42h). Requires WREN. Datasheet Table 6.5–6.6.
     pub async fn write_function_register(&mut self, value: u8) -> Result<(), Error> {
+        self.write_function_register_fields(FunctionWriteReg::from([value]))
+            .await
+    }
+
+    /// Write Function Register (WRFR 42h) from generated field-set payload.
+    pub async fn write_function_register_fields(&mut self, value: FunctionWriteReg) -> Result<(), Error> {
         self.enable_write_latch().await?;
-        self.spi.write(&[Opcode::WriteFunctionReg as u8, value]).await?;
+        self.spi
+            .write(&[Opcode::WriteFunctionReg as u8, <[u8; 1]>::from(value)[0]])
+            .await?;
         self.wait_done().await?;
         Ok(())
     }
 
     /// Set Read Parameters non-volatile (SRPNV 65h). P7–P0: HOLD#/RESET#, dummy cycles, wrap, burst length.
     pub async fn set_read_parameters_nv(&mut self, value: u8) -> Result<(), Error> {
+        self.set_read_parameters_nv_fields(ReadParamsNvReg::from([value]))
+            .await
+    }
+
+    /// Set Read Parameters non-volatile (SRPNV 65h) from high-level helper fields.
+    pub async fn set_read_parameters_nv_typed(&mut self, value: ReadParameters) -> Result<(), Error> {
+        self.set_read_parameters_nv_fields(ReadParamsNvReg::from(value))
+            .await
+    }
+
+    /// Set Read Parameters non-volatile (SRPNV 65h) from generated field-set payload.
+    pub async fn set_read_parameters_nv_fields(&mut self, value: ReadParamsNvReg) -> Result<(), Error> {
         self.enable_write_latch().await?;
-        self.spi.write(&[Opcode::SetReadParamsNv as u8, value]).await?;
+        self.spi
+            .write(&[Opcode::SetReadParamsNv as u8, <[u8; 1]>::from(value)[0]])
+            .await?;
         self.wait_done().await?;
         Ok(())
     }
 
     /// Set Read Parameters volatile (SRPV 63h).
     pub async fn set_read_parameters_volatile(&mut self, value: u8) -> Result<(), Error> {
+        self.set_read_parameters_volatile_fields(ReadParamsVolatileReg::from([value]))
+            .await
+    }
+
+    /// Set Read Parameters volatile (SRPV 63h) from high-level helper fields.
+    pub async fn set_read_parameters_volatile_typed(
+        &mut self,
+        value: ReadParameters,
+    ) -> Result<(), Error> {
+        self.set_read_parameters_volatile_fields(ReadParamsVolatileReg::from(value))
+            .await
+    }
+
+    /// Set Read Parameters volatile (SRPV 63h) from generated field-set payload.
+    pub async fn set_read_parameters_volatile_fields(
+        &mut self,
+        value: ReadParamsVolatileReg,
+    ) -> Result<(), Error> {
         self.enable_write_latch().await?;
-        self.spi.write(&[Opcode::SetReadParamsVolatile as u8, value]).await?;
+        self.spi
+            .write(&[
+                Opcode::SetReadParamsVolatile as u8,
+                <[u8; 1]>::from(value)[0],
+            ])
+            .await?;
         self.wait_done().await?;
         Ok(())
     }
 
-    /// Read Read Register (opcode 0Fh). P7–P0 per datasheet Table 6.7–6.8.
-    pub async fn read_read_register(&mut self) -> Result<u8, Error> {
+    /// Read Read Register (0Fh) decoded into generated bitfields.
+    pub async fn read_read_register_fields(&mut self) -> Result<ReadReg, Error> {
         let mut buf = [Opcode::ReadReadReg as u8, 0];
         self.spi.transfer_in_place(&mut buf).await?;
-        Ok(buf[1])
+        Ok(ReadReg::from([buf[1]]))
+    }
+
+    /// Read Read Register (opcode 0Fh). P7–P0 per datasheet Table 6.7–6.8.
+    pub async fn read_read_register(&mut self) -> Result<u8, Error> {
+        let reg = self.read_read_register_fields().await?;
+        Ok(<[u8; 1]>::from(reg)[0])
     }
 
     /// Set Extended Read Parameters non-volatile (SERPNV 85h). Only ODS (EB7:5) is writable; EB4:0 are read-only.
     /// Datasheet Table 6.12–6.13.
     pub async fn set_extended_read_parameters_nv(&mut self, value: u8) -> Result<(), Error> {
+        self.set_extended_read_parameters_nv_fields(ExtendedReadParamsNvReg::from([value]))
+            .await
+    }
+
+    /// Set Extended Read Parameters non-volatile (SERPNV 85h) from generated field-set payload.
+    pub async fn set_extended_read_parameters_nv_fields(
+        &mut self,
+        value: ExtendedReadParamsNvReg,
+    ) -> Result<(), Error> {
         self.enable_write_latch().await?;
-        self.spi.write(&[Opcode::SetExtendedReadParamsNv as u8, value]).await?;
+        self.spi
+            .write(&[
+                Opcode::SetExtendedReadParamsNv as u8,
+                <[u8; 1]>::from(value)[0],
+            ])
+            .await?;
         self.wait_done().await?;
         Ok(())
     }
 
     /// Set Extended Read Parameters volatile (SERPV 83h). Only ODS (EB7:5) is writable.
     pub async fn set_extended_read_parameters_volatile(&mut self, value: u8) -> Result<(), Error> {
+        self.set_extended_read_parameters_volatile_fields(ExtendedReadParamsVolatileReg::from([value]))
+            .await
+    }
+
+    /// Set Extended Read Parameters volatile (SERPV 83h) from generated field-set payload.
+    pub async fn set_extended_read_parameters_volatile_fields(
+        &mut self,
+        value: ExtendedReadParamsVolatileReg,
+    ) -> Result<(), Error> {
         self.enable_write_latch().await?;
-        self.spi.write(&[Opcode::SetExtendedReadParamsVolatile as u8, value]).await?;
+        self.spi
+            .write(&[
+                Opcode::SetExtendedReadParamsVolatile as u8,
+                <[u8; 1]>::from(value)[0],
+            ])
+            .await?;
         self.wait_done().await?;
         Ok(())
     }
@@ -1089,7 +1295,7 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         &mut self,
         driver_strength: DriverStrength,
     ) -> Result<(), Error> {
-        self.set_extended_read_parameters_nv(driver_strength.to_register_byte())
+        self.set_extended_read_parameters_nv_fields(ExtendedReadParamsNvReg::from(driver_strength))
             .await
     }
 
@@ -1098,16 +1304,22 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         &mut self,
         driver_strength: DriverStrength,
     ) -> Result<(), Error> {
-        self.set_extended_read_parameters_volatile(driver_strength.to_register_byte())
+        self.set_extended_read_parameters_volatile_fields(ExtendedReadParamsVolatileReg::from(driver_strength))
             .await
+    }
+
+    /// Read Extended Read Register (4Fh) decoded into generated bitfields.
+    pub async fn read_extended_read_register_fields(&mut self) -> Result<ExtendedReadReg, Error> {
+        let mut buf = [Opcode::ReadExtendedReadReg as u8, 0];
+        self.spi.transfer_in_place(&mut buf).await?;
+        Ok(ExtendedReadReg::from([buf[1]]))
     }
 
     /// Read Extended Read Register (opcode 4Fh). Table 6.12–6.13: ODS (EB7:5) writable; EB4 reserved;
     /// EB3:0 read-only (WIP, PROT_E, P_ERR, E_ERR). These read-only bits are not affected by SERPNV/SERPV.
     pub async fn read_extended_read_register(&mut self) -> Result<ExtendedReadStatus, Error> {
-        let mut buf = [Opcode::ReadExtendedReadReg as u8, 0];
-        self.spi.transfer_in_place(&mut buf).await?;
-        Ok(ExtendedReadStatus::from_byte(buf[1]))
+        let reg = self.read_extended_read_register_fields().await?;
+        Ok(ExtendedReadStatus::from(reg))
     }
 
     /// Read operation error bits (P_ERR, E_ERR, PROT_E) from the Extended Read Register.
@@ -1117,48 +1329,102 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         Ok(OperationErrors::from(status))
     }
 
-    /// Read AutoBoot Register (RDABR 14h). Table 6.3 companion read for WRABR.
-    pub async fn read_autoboot_register(&mut self) -> Result<u8, Error> {
+    /// Read AutoBoot Register (14h) decoded into generated bitfields.
+    pub async fn read_autoboot_register_fields(&mut self) -> Result<AutobootReg, Error> {
         let mut buf = [Opcode::ReadAutoBootReg as u8, 0];
         self.spi.transfer_in_place(&mut buf).await?;
-        Ok(buf[1])
+        Ok(AutobootReg::from([buf[1]]))
+    }
+
+    /// Read AutoBoot Register (RDABR 14h). Table 6.3 companion read for WRABR.
+    pub async fn read_autoboot_register(&mut self) -> Result<u8, Error> {
+        let reg = self.read_autoboot_register_fields().await?;
+        Ok(<[u8; 1]>::from(reg)[0])
     }
 
     /// Write AutoBoot Register (WRABR 15h). Table 6.3. Requires WREN.
     pub async fn write_autoboot_register(&mut self, value: u8) -> Result<(), Error> {
+        self.write_autoboot_register_fields(AutobootWriteReg::from([value]))
+            .await
+    }
+
+    /// Write AutoBoot Register (WRABR 15h) from generated field-set payload.
+    pub async fn write_autoboot_register_fields(&mut self, value: AutobootWriteReg) -> Result<(), Error> {
         self.enable_write_latch().await?;
-        self.spi.write(&[Opcode::WriteAutoBootReg as u8, value]).await?;
+        self.spi
+            .write(&[Opcode::WriteAutoBootReg as u8, <[u8; 1]>::from(value)[0]])
+            .await?;
         self.wait_done().await?;
         Ok(())
     }
 
-    /// Read Bank Address Register (RDBR 16h). EXTADD (3- vs 4-byte addressing) in bit 7.
-    pub async fn read_bank_register(&mut self) -> Result<u8, Error> {
+    /// Read Bank Address Register (16h) decoded into generated bitfields.
+    pub async fn read_bank_register_fields(&mut self) -> Result<BankReg, Error> {
         let mut buf = [Opcode::ReadBankReg as u8, 0];
         self.spi.transfer_in_place(&mut buf).await?;
-        Ok(buf[1])
+        Ok(BankReg::from([buf[1]]))
+    }
+
+    /// Read Bank Address Register (RDBR 16h). EXTADD (3- vs 4-byte addressing) in bit 7.
+    pub async fn read_bank_register(&mut self) -> Result<u8, Error> {
+        let reg = self.read_bank_register_fields().await?;
+        Ok(<[u8; 1]>::from(reg)[0])
     }
 
     /// Write non-volatile Bank Address Register (WRBRNV 18h). Table 6.3. Requires WREN.
     pub async fn write_bank_register_nv(&mut self, value: u8) -> Result<(), Error> {
+        self.write_bank_register_nv_fields(BankWriteNvReg::from([value]))
+            .await
+    }
+
+    /// Write non-volatile Bank Address Register (WRBRNV 18h) from generated field-set payload.
+    pub async fn write_bank_register_nv_fields(&mut self, value: BankWriteNvReg) -> Result<(), Error> {
         self.enable_write_latch().await?;
-        self.spi.write(&[Opcode::WriteBankRegNv as u8, value]).await?;
+        self.spi
+            .write(&[Opcode::WriteBankRegNv as u8, <[u8; 1]>::from(value)[0]])
+            .await?;
         self.wait_done().await?;
         Ok(())
     }
 
     /// Write volatile Bank Address Register (WRBRV C5h). Table 6.3. Requires WREN.
     pub async fn write_bank_register_volatile(&mut self, value: u8) -> Result<(), Error> {
+        self.write_bank_register_volatile_fields(BankWriteVolatileReg::from([value]))
+            .await
+    }
+
+    /// Write volatile Bank Address Register (WRBRV C5h) from generated field-set payload.
+    pub async fn write_bank_register_volatile_fields(
+        &mut self,
+        value: BankWriteVolatileReg,
+    ) -> Result<(), Error> {
         self.enable_write_latch().await?;
-        self.spi.write(&[Opcode::WriteBankRegVolatile as u8, value]).await?;
+        self.spi
+            .write(&[
+                Opcode::WriteBankRegVolatile as u8,
+                <[u8; 1]>::from(value)[0],
+            ])
+            .await?;
         self.wait_done().await?;
         Ok(())
     }
 
     /// Write volatile Bank Address Register without WREN (WRBRV 17h). Table 6.3 Note 2.
     pub async fn write_bank_register_volatile_no_wren(&mut self, value: u8) -> Result<(), Error> {
+        self.write_bank_register_volatile_no_wren_fields(BankWriteVolatileNoWrenReg::from([value]))
+            .await
+    }
+
+    /// Write volatile Bank Address Register without WREN (WRBRV 17h) from generated field-set payload.
+    pub async fn write_bank_register_volatile_no_wren_fields(
+        &mut self,
+        value: BankWriteVolatileNoWrenReg,
+    ) -> Result<(), Error> {
         self.spi
-            .write(&[Opcode::WriteBankRegVolatileNoWren as u8, value])
+            .write(&[
+                Opcode::WriteBankRegVolatileNoWren as u8,
+                <[u8; 1]>::from(value)[0],
+            ])
             .await?;
         Ok(())
     }
@@ -1166,11 +1432,17 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
     // --- 9. Advanced Sector/Block Protection (ASP) ---
 
     /// Read Advanced Sector/Block Protection Register (RDASP 2Bh). 2 bytes.
-    pub async fn read_asp(&mut self) -> Result<[u8; 2], Error> {
+    pub async fn read_asp_fields(&mut self) -> Result<AspReg, Error> {
         let cmd_buf = [Opcode::RdAsp as u8, 0, 0];
         let mut data_buf = [0u8; 2];
         self.spi.read(&cmd_buf, &mut data_buf).await?;
-        Ok(data_buf)
+        Ok(AspReg::from(data_buf))
+    }
+
+    /// Read Advanced Sector/Block Protection Register (RDASP 2Bh). 2 bytes.
+    pub async fn read_asp(&mut self) -> Result<[u8; 2], Error> {
+        let reg = self.read_asp_fields().await?;
+        Ok(<[u8; 2]>::from(reg))
     }
 
     /// Program ASP (PGASP 2Fh). Requires WREN. Datasheet Table 6.19–6.20.
@@ -1183,11 +1455,17 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
     }
 
     /// Read Password (RDPWD E7h). 8 bytes. Only readable before password protection mode is selected.
-    pub async fn read_password(&mut self) -> Result<[u8; 8], Error> {
+    pub async fn read_password_fields(&mut self) -> Result<PasswordReg, Error> {
         let cmd_buf = [Opcode::RdPwd as u8];
         let mut data_buf = [0u8; 8];
         self.spi.read(&cmd_buf, &mut data_buf).await?;
-        Ok(data_buf)
+        Ok(PasswordReg::from(data_buf))
+    }
+
+    /// Read Password (RDPWD E7h). 8 bytes. Only readable before password protection mode is selected.
+    pub async fn read_password(&mut self) -> Result<[u8; 8], Error> {
+        let reg = self.read_password_fields().await?;
+        Ok(<[u8; 8]>::from(reg))
     }
 
     /// Program Password (PGPWD E8h). Requires WREN. 8 bytes. OTP.
@@ -1211,17 +1489,30 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         Ok(())
     }
 
-    /// Read PPB Lock Bit (RDPLB A7h). Returns one byte (PPBLK, FREEZE, etc.). Datasheet Table 6.22.
-    pub async fn read_ppb_lock(&mut self) -> Result<u8, Error> {
+    /// Read PPB Lock register (A7h) decoded into generated bitfields.
+    pub async fn read_ppb_lock_fields(&mut self) -> Result<PpbLockReg, Error> {
         let mut buf = [Opcode::RdPpbLock as u8, 0];
         self.spi.transfer_in_place(&mut buf).await?;
-        Ok(buf[1])
+        Ok(PpbLockReg::from([buf[1]]))
+    }
+
+    /// Read PPB Lock Bit (RDPLB A7h). Returns one byte (PPBLK, FREEZE, etc.). Datasheet Table 6.22.
+    pub async fn read_ppb_lock(&mut self) -> Result<u8, Error> {
+        let reg = self.read_ppb_lock_fields().await?;
+        Ok(<[u8; 1]>::from(reg)[0])
     }
 
     /// Write PPB Lock Bit (WRPLB A6h). Clears PPB Lock to 0 (locks PPBs). Requires WREN.
     pub async fn write_ppb_lock(&mut self, value: u8) -> Result<(), Error> {
+        self.write_ppb_lock_fields(PpbLockWriteReg::from([value])).await
+    }
+
+    /// Write PPB Lock Bit (WRPLB A6h) from generated field-set payload.
+    pub async fn write_ppb_lock_fields(&mut self, value: PpbLockWriteReg) -> Result<(), Error> {
         self.enable_write_latch().await?;
-        self.spi.write(&[Opcode::WrPpbLock as u8, value]).await?;
+        self.spi
+            .write(&[Opcode::WrPpbLock as u8, <[u8; 1]>::from(value)[0]])
+            .await?;
         self.wait_done().await?;
         Ok(())
     }
@@ -1235,6 +1526,12 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Read PPB for sector/block (RDPPB FCh). Address must be sector/block start (3-byte). Returns 0 = protected, 0xFF = not.
     pub async fn read_ppb(&mut self, address: i32) -> Result<u8, Error> {
+        let reg = self.read_ppb_fields(address).await?;
+        Ok(<[u8; 1]>::from(reg)[0])
+    }
+
+    /// Read PPB for sector/block (RDPPB FCh) as generated field-set payload.
+    pub async fn read_ppb_fields(&mut self, address: i32) -> Result<PpbReg, Error> {
         if address < 0 || (address as u32) >= CHIP_SIZE {
             return Err(Error::AddressOutOfBounds(address));
         }
@@ -1242,17 +1539,24 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         cmd_buf[0] = Opcode::RdPpb as u8;
         let mut data_buf = [0u8; 1];
         self.spi.read(&cmd_buf, &mut data_buf).await?;
-        Ok(data_buf[0])
+        Ok(PpbReg::from(data_buf))
     }
 
     /// Program PPB for sector/block (PGPPB FDh). Programs PPB to 0 (protect). Requires WREN; PPB Lock must be 1.
     pub async fn program_ppb(&mut self, address: i32) -> Result<(), Error> {
+        self.program_ppb_fields(address, PpbWriteReg::from([0x00])).await
+    }
+
+    /// Program PPB for sector/block (PGPPB FDh) with generated field-set payload.
+    pub async fn program_ppb_fields(&mut self, address: i32, value: PpbWriteReg) -> Result<(), Error> {
         if address < 0 || (address as u32) >= CHIP_SIZE {
             return Err(Error::AddressOutOfBounds(address));
         }
         self.enable_write_latch().await?;
-        let mut buf = address.to_be_bytes();
+        let mut buf = [0u8; 5];
+        buf[1..4].copy_from_slice(&address.to_be_bytes()[1..4]);
         buf[0] = Opcode::PgPpb as u8;
+        buf[4] = <[u8; 1]>::from(value)[0];
         self.spi.write(&buf).await?;
         self.wait_done().await?;
         Ok(())
@@ -1268,6 +1572,12 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Read DYB for sector/block (RDDYB FAh). 0 = protected, 0xFF = not.
     pub async fn read_dyb(&mut self, address: i32) -> Result<u8, Error> {
+        let reg = self.read_dyb_fields(address).await?;
+        Ok(<[u8; 1]>::from(reg)[0])
+    }
+
+    /// Read DYB for sector/block (RDDYB FAh) as generated field-set payload.
+    pub async fn read_dyb_fields(&mut self, address: i32) -> Result<DybReg, Error> {
         if address < 0 || (address as u32) >= CHIP_SIZE {
             return Err(Error::AddressOutOfBounds(address));
         }
@@ -1275,11 +1585,16 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         cmd_buf[0] = Opcode::RdDyb as u8;
         let mut data_buf = [0u8; 1];
         self.spi.read(&cmd_buf, &mut data_buf).await?;
-        Ok(data_buf[0])
+        Ok(DybReg::from(data_buf))
     }
 
     /// Write DYB for sector/block (WRDYB FBh). 0 = protect, 0xFF = unprotect. Requires WREN.
     pub async fn write_dyb(&mut self, address: i32, value: u8) -> Result<(), Error> {
+        self.write_dyb_fields(address, DybWriteReg::from([value])).await
+    }
+
+    /// Write DYB for sector/block (WRDYB FBh) from generated field-set payload.
+    pub async fn write_dyb_fields(&mut self, address: i32, value: DybWriteReg) -> Result<(), Error> {
         if address < 0 || (address as u32) >= CHIP_SIZE {
             return Err(Error::AddressOutOfBounds(address));
         }
@@ -1287,7 +1602,7 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         let mut buf = [0u8; 5];
         buf[0] = Opcode::WrDyb as u8;
         buf[1..4].copy_from_slice(&address.to_be_bytes()[1..4]);
-        buf[4] = value;
+        buf[4] = <[u8; 1]>::from(value)[0];
         self.spi.write(&buf).await?;
         self.wait_done().await?;
         Ok(())
@@ -1311,6 +1626,12 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Read PPB with 4-byte address (4RDPPB E2h). Use after `enter_4byte_address_mode`.
     pub async fn read_ppb_4byte(&mut self, address: u32) -> Result<u8, Error> {
+        let reg = self.read_ppb_4byte_fields(address).await?;
+        Ok(<[u8; 1]>::from(reg)[0])
+    }
+
+    /// Read PPB with 4-byte address (4RDPPB E2h) as generated field-set payload.
+    pub async fn read_ppb_4byte_fields(&mut self, address: u32) -> Result<PpbReg, Error> {
         if address >= CHIP_SIZE {
             return Err(Error::AddressOutOfBounds(address as i32));
         }
@@ -1319,18 +1640,29 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         cmd_buf[1..5].copy_from_slice(&address.to_be_bytes());
         let mut data_buf = [0u8; 1];
         self.spi.read(&cmd_buf, &mut data_buf).await?;
-        Ok(data_buf[0])
+        Ok(PpbReg::from(data_buf))
     }
 
     /// Program PPB with 4-byte address (4PGPPB E3h).
     pub async fn program_ppb_4byte(&mut self, address: u32) -> Result<(), Error> {
+        self.program_ppb_4byte_fields(address, PpbWriteReg::from([0x00]))
+            .await
+    }
+
+    /// Program PPB with 4-byte address (4PGPPB E3h) with generated field-set payload.
+    pub async fn program_ppb_4byte_fields(
+        &mut self,
+        address: u32,
+        value: PpbWriteReg,
+    ) -> Result<(), Error> {
         if address >= CHIP_SIZE {
             return Err(Error::AddressOutOfBounds(address as i32));
         }
         self.enable_write_latch().await?;
-        let mut buf = [0u8; 5];
+        let mut buf = [0u8; 6];
         buf[0] = Opcode::PgPpb4Byte as u8;
         buf[1..5].copy_from_slice(&address.to_be_bytes());
+        buf[5] = <[u8; 1]>::from(value)[0];
         self.spi.write(&buf).await?;
         self.wait_done().await?;
         Ok(())
@@ -1338,6 +1670,12 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Read DYB with 4-byte address (4RDDYB E0h).
     pub async fn read_dyb_4byte(&mut self, address: u32) -> Result<u8, Error> {
+        let reg = self.read_dyb_4byte_fields(address).await?;
+        Ok(<[u8; 1]>::from(reg)[0])
+    }
+
+    /// Read DYB with 4-byte address (4RDDYB E0h) as generated field-set payload.
+    pub async fn read_dyb_4byte_fields(&mut self, address: u32) -> Result<DybReg, Error> {
         if address >= CHIP_SIZE {
             return Err(Error::AddressOutOfBounds(address as i32));
         }
@@ -1346,11 +1684,21 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         cmd_buf[1..5].copy_from_slice(&address.to_be_bytes());
         let mut data_buf = [0u8; 1];
         self.spi.read(&cmd_buf, &mut data_buf).await?;
-        Ok(data_buf[0])
+        Ok(DybReg::from(data_buf))
     }
 
     /// Write DYB with 4-byte address (4WRDYB E1h).
     pub async fn write_dyb_4byte(&mut self, address: u32, value: u8) -> Result<(), Error> {
+        self.write_dyb_4byte_fields(address, DybWriteReg::from([value]))
+            .await
+    }
+
+    /// Write DYB with 4-byte address (4WRDYB E1h) from generated field-set payload.
+    pub async fn write_dyb_4byte_fields(
+        &mut self,
+        address: u32,
+        value: DybWriteReg,
+    ) -> Result<(), Error> {
         if address >= CHIP_SIZE {
             return Err(Error::AddressOutOfBounds(address as i32));
         }
@@ -1358,7 +1706,7 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         let mut buf = [0u8; 6];
         buf[0] = Opcode::WrDyb4Byte as u8;
         buf[1..5].copy_from_slice(&address.to_be_bytes());
-        buf[5] = value;
+        buf[5] = <[u8; 1]>::from(value)[0];
         self.spi.write(&buf).await?;
         self.wait_done().await?;
         Ok(())
