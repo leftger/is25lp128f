@@ -565,16 +565,16 @@ enum Opcode {
     RdDyb4Byte = 0xE0,
     WrDyb4Byte = 0xE1,
     // Table 6.3: PPQ / 4PPQ, IRER, IRP, WRABR, WRBRNV, WRBRV
-    PageProgramQuad = 0x32,           // PPQ 3-byte address
-    PageProgramQuad4Byte = 0x34,      // 4PPQ 4-byte address (34h/3Eh)
-    EraseInformationRow = 0x64,       // IRER
-    ProgramInformationRow = 0x62,     // IRP
-    ReadInformationRow = 0x4A,       // IRRD (read Information Row; opcode per datasheet)
-    WriteAutoBootReg = 0x15,          // WRABR
-    ReadAutoBootReg = 0x14,           // RDABR (read AutoBoot Register)
-    ReadBankReg = 0x16,               // RDBR
-    WriteBankRegNv = 0x18,            // WRBRNV
-    WriteBankRegVolatile = 0xC5,      // WRBRV (requires WREN)
+    PageProgramQuad = 0x32,            // PPQ 3-byte address
+    PageProgramQuad4Byte = 0x34,       // 4PPQ 4-byte address (34h/3Eh)
+    EraseInformationRow = 0x64,        // IRER
+    ProgramInformationRow = 0x62,      // IRP
+    ReadInformationRow = 0x4A,         // IRRD (read Information Row; opcode per datasheet)
+    WriteAutoBootReg = 0x15,           // WRABR
+    ReadAutoBootReg = 0x14,            // RDABR (read AutoBoot Register)
+    ReadBankReg = 0x16,                // RDBR
+    WriteBankRegNv = 0x18,             // WRBRNV
+    WriteBankRegVolatile = 0xC5,       // WRBRV (requires WREN)
     WriteBankRegVolatileNoWren = 0x17, // WRBRV (Note 2: no WREN)
 }
 
@@ -624,11 +624,7 @@ impl FlashEraseSize {
 pub trait Spi {
     async fn configure_spi(&mut self) -> Result<(), Error>;
     async fn transfer_in_place(&mut self, buf: &mut [u8]) -> Result<(), Error>;
-    async fn read(
-        &mut self,
-        read_cmd_buf: &[u8],
-        read_buf: &mut [u8],
-    ) -> Result<(), Error>;
+    async fn read(&mut self, read_cmd_buf: &[u8], read_buf: &mut [u8]) -> Result<(), Error>;
     async fn write(&mut self, data: &[u8]) -> Result<(), Error>;
 }
 
@@ -662,17 +658,9 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         Ok(())
     }
 
-    pub async fn read(
-        &mut self,
-        address: i32,
-        read_buf: &mut [u8],
-    ) -> Result<(), Error> {
+    pub async fn read(&mut self, address: i32, read_buf: &mut [u8]) -> Result<(), Error> {
         let mut read_cmd_buf = [0x00_u8; 4];
-        prepare_read_command_buffer(
-            address,
-            read_buf.len(),
-            &mut read_cmd_buf,
-        )?;
+        prepare_read_command_buffer(address, read_buf.len(), &mut read_cmd_buf)?;
         self.spi.read(&read_cmd_buf, read_buf).await?;
         Ok(())
     }
@@ -683,11 +671,7 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         Ok(())
     }
 
-    pub async fn write_page(
-        &mut self,
-        address: i32,
-        data: &[u8],
-    ) -> Result<(), Error> {
+    pub async fn write_page(&mut self, address: i32, data: &[u8]) -> Result<(), Error> {
         let mut buf = [0; (PAGE_SIZE + 4) as usize];
         prepare_write_command_buffer(address, data, &mut buf)?;
         let buf_slice = &buf[..4 + data.len()];
@@ -731,11 +715,7 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         Ok(())
     }
 
-    pub async fn erase(
-        &mut self,
-        erase_type: FlashEraseSize,
-        address: i32,
-    ) -> Result<(), Error> {
+    pub async fn erase(&mut self, erase_type: FlashEraseSize, address: i32) -> Result<(), Error> {
         let buf = prepare_erase_command_buffer(&erase_type, address)?;
         self.enable_write_latch().await?;
         self.spi.write(&buf).await?;
@@ -764,7 +744,7 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         while self.read_status().await?.busy() {
             if elapsed_ms >= timeout_ms {
                 return Err(Error::SpiTimeoutError(
-                    timeout_ms.min(u64::from(u32::MAX)) as u32,
+                    timeout_ms.min(u64::from(u32::MAX)) as u32
                 ));
             }
             self.hardware_interface.wait_ms(1).await;
@@ -836,7 +816,10 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
     }
 
     /// Write volatile status register from a generated field-set payload.
-    pub async fn write_status_volatile_fields(&mut self, value: StatusWriteReg) -> Result<(), Error> {
+    pub async fn write_status_volatile_fields(
+        &mut self,
+        value: StatusWriteReg,
+    ) -> Result<(), Error> {
         let buf_vsrwe = [Opcode::VolatileStatusWriteEnable as u8];
         self.spi.write(&buf_vsrwe).await?;
         let buf_wrsr = [Opcode::WriteStatus as u8, <[u8; 1]>::from(value)[0]];
@@ -878,7 +861,11 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Fast Read Dual Output (3Bh): opcode + 3-byte address + 1 dummy byte (8 cycles). Datasheet Table 6.11.
     /// For actual dual-line data throughput the SPI transport must support Dual SPI.
-    pub async fn read_fast_dual_output(&mut self, address: i32, read_buf: &mut [u8]) -> Result<(), Error> {
+    pub async fn read_fast_dual_output(
+        &mut self,
+        address: i32,
+        read_buf: &mut [u8],
+    ) -> Result<(), Error> {
         read_fast_style(
             &mut self.spi,
             Opcode::FastReadDualOutput as u8,
@@ -891,7 +878,11 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Fast Read Dual I/O (BBh): opcode + 3-byte address + 1 dummy byte (4 cycles typical). Datasheet Table 6.11.
     /// For actual dual I/O throughput the SPI transport must support Dual SPI.
-    pub async fn read_fast_dual_io(&mut self, address: i32, read_buf: &mut [u8]) -> Result<(), Error> {
+    pub async fn read_fast_dual_io(
+        &mut self,
+        address: i32,
+        read_buf: &mut [u8],
+    ) -> Result<(), Error> {
         read_fast_style(
             &mut self.spi,
             Opcode::FastReadDualIo as u8,
@@ -904,7 +895,11 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Fast Read Quad Output (6Bh): opcode + 3-byte address + 1 dummy byte (8 cycles). Datasheet Table 6.11.
     /// For actual quad-line data throughput the SPI transport must support Quad SPI (QE=1).
-    pub async fn read_fast_quad_output(&mut self, address: i32, read_buf: &mut [u8]) -> Result<(), Error> {
+    pub async fn read_fast_quad_output(
+        &mut self,
+        address: i32,
+        read_buf: &mut [u8],
+    ) -> Result<(), Error> {
         read_fast_style(
             &mut self.spi,
             Opcode::FastReadQuadOutput as u8,
@@ -917,7 +912,11 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Fast Read Quad I/O (EBh): opcode + 3-byte address + 1 dummy byte (6 cycles typical). Datasheet Table 6.11.
     /// For actual quad I/O throughput the SPI transport must support Quad SPI (QE=1).
-    pub async fn read_fast_quad_io(&mut self, address: i32, read_buf: &mut [u8]) -> Result<(), Error> {
+    pub async fn read_fast_quad_io(
+        &mut self,
+        address: i32,
+        read_buf: &mut [u8],
+    ) -> Result<(), Error> {
         read_fast_style(
             &mut self.spi,
             Opcode::FastReadQuadIo as u8,
@@ -1115,7 +1114,11 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Program Information Row (IRP 62h). Table 6.3. Requires WREN.
     /// `address` is the row/offset (3-byte); `data` up to page size. See datasheet for IR layout.
-    pub async fn program_information_row(&mut self, address: i32, data: &[u8]) -> Result<(), Error> {
+    pub async fn program_information_row(
+        &mut self,
+        address: i32,
+        data: &[u8],
+    ) -> Result<(), Error> {
         if address < 0 {
             return Err(Error::AddressOutOfBounds(address));
         }
@@ -1157,7 +1160,10 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
     }
 
     /// Write Function Register (WRFR 42h) from generated field-set payload.
-    pub async fn write_function_register_fields(&mut self, value: FunctionWriteReg) -> Result<(), Error> {
+    pub async fn write_function_register_fields(
+        &mut self,
+        value: FunctionWriteReg,
+    ) -> Result<(), Error> {
         self.enable_write_latch().await?;
         self.spi
             .write(&[Opcode::WriteFunctionReg as u8, <[u8; 1]>::from(value)[0]])
@@ -1167,13 +1173,19 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
     }
 
     /// Set Read Parameters non-volatile (SRPNV 65h) from high-level helper fields.
-    pub async fn set_read_parameters_nv_typed(&mut self, value: ReadParameters) -> Result<(), Error> {
+    pub async fn set_read_parameters_nv_typed(
+        &mut self,
+        value: ReadParameters,
+    ) -> Result<(), Error> {
         self.set_read_parameters_nv_fields(ReadParamsNvReg::from(value))
             .await
     }
 
     /// Set Read Parameters non-volatile (SRPNV 65h) from generated field-set payload.
-    pub async fn set_read_parameters_nv_fields(&mut self, value: ReadParamsNvReg) -> Result<(), Error> {
+    pub async fn set_read_parameters_nv_fields(
+        &mut self,
+        value: ReadParamsNvReg,
+    ) -> Result<(), Error> {
         self.enable_write_latch().await?;
         self.spi
             .write(&[Opcode::SetReadParamsNv as u8, <[u8; 1]>::from(value)[0]])
@@ -1261,8 +1273,10 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         &mut self,
         driver_strength: DriverStrength,
     ) -> Result<(), Error> {
-        self.set_extended_read_parameters_volatile_fields(ExtendedReadParamsVolatileReg::from(driver_strength))
-            .await
+        self.set_extended_read_parameters_volatile_fields(ExtendedReadParamsVolatileReg::from(
+            driver_strength,
+        ))
+        .await
     }
 
     /// Read Extended Read Register (4Fh) decoded into generated bitfields.
@@ -1294,7 +1308,10 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
     }
 
     /// Write AutoBoot Register (WRABR 15h) from generated field-set payload.
-    pub async fn write_autoboot_register_fields(&mut self, value: AutobootWriteReg) -> Result<(), Error> {
+    pub async fn write_autoboot_register_fields(
+        &mut self,
+        value: AutobootWriteReg,
+    ) -> Result<(), Error> {
         self.enable_write_latch().await?;
         self.spi
             .write(&[Opcode::WriteAutoBootReg as u8, <[u8; 1]>::from(value)[0]])
@@ -1311,7 +1328,10 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
     }
 
     /// Write non-volatile Bank Address Register (WRBRNV 18h) from generated field-set payload.
-    pub async fn write_bank_register_nv_fields(&mut self, value: BankWriteNvReg) -> Result<(), Error> {
+    pub async fn write_bank_register_nv_fields(
+        &mut self,
+        value: BankWriteNvReg,
+    ) -> Result<(), Error> {
         self.enable_write_latch().await?;
         self.spi
             .write(&[Opcode::WriteBankRegNv as u8, <[u8; 1]>::from(value)[0]])
@@ -1442,11 +1462,16 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Program PPB for sector/block (PGPPB FDh). Programs PPB to 0 (protect). Requires WREN; PPB Lock must be 1.
     pub async fn program_ppb(&mut self, address: i32) -> Result<(), Error> {
-        self.program_ppb_fields(address, PpbWriteReg::from([0x00])).await
+        self.program_ppb_fields(address, PpbWriteReg::from([0x00]))
+            .await
     }
 
     /// Program PPB for sector/block (PGPPB FDh) with generated field-set payload.
-    pub async fn program_ppb_fields(&mut self, address: i32, value: PpbWriteReg) -> Result<(), Error> {
+    pub async fn program_ppb_fields(
+        &mut self,
+        address: i32,
+        value: PpbWriteReg,
+    ) -> Result<(), Error> {
         if address < 0 || (address as u32) >= CHIP_SIZE {
             return Err(Error::AddressOutOfBounds(address));
         }
@@ -1487,7 +1512,11 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
     }
 
     /// Write DYB for sector/block (WRDYB FBh) from generated field-set payload.
-    pub async fn write_dyb_fields(&mut self, address: i32, value: DybWriteReg) -> Result<(), Error> {
+    pub async fn write_dyb_fields(
+        &mut self,
+        address: i32,
+        value: DybWriteReg,
+    ) -> Result<(), Error> {
         if address < 0 || (address as u32) >= CHIP_SIZE {
             return Err(Error::AddressOutOfBounds(address));
         }
@@ -1639,18 +1668,13 @@ fn prepare_read_command_buffer(
     if read_buf_len < 1 || read_buf_len > PAGE_SIZE as usize {
         return Err(Error::BufferSizeInvalid(read_buf_len));
     }
-    let read_cmd: ReadWriteCmd =
-        ReadWriteCmd::default().with_write_or_read(0b011);
+    let read_cmd: ReadWriteCmd = ReadWriteCmd::default().with_write_or_read(0b011);
     read_cmd_buf[..4].copy_from_slice(&address.to_be_bytes());
     read_cmd_buf[0] = read_cmd.into_bytes()[0];
     Ok(())
 }
 
-fn prepare_write_command_buffer(
-    address: i32,
-    data: &[u8],
-    buf: &mut [u8],
-) -> Result<(), Error> {
+fn prepare_write_command_buffer(address: i32, data: &[u8], buf: &mut [u8]) -> Result<(), Error> {
     if address < 0 || buf.len() + (address as usize) > (CHIP_SIZE as usize) {
         return Err(Error::AddressOutOfBounds(address));
     }
@@ -1808,11 +1832,7 @@ mod tests {
         #[case] mut read_cmd_buf: Vec<u8>,
         #[case] expected: Result<(), Error>,
     ) {
-        let result = prepare_read_command_buffer(
-            address,
-            read_buf_len,
-            &mut read_cmd_buf,
-        );
+        let result = prepare_read_command_buffer(address, read_buf_len, &mut read_cmd_buf);
         assert_eq!(result, expected);
 
         if result.is_ok() {

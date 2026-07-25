@@ -3,6 +3,7 @@ name = "is25lp128f"
 version = "0.2.0"
 edition = "2021"
 description = "Async no_std driver for ISSI IS25LP128F 128 Mbit SPI NOR flash"
+authors = ["Gerzain Mata <leftger@gmail.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/leftger/is25lp128f"
 keywords = ["embedded", "flash", "nor-flash", "async", "no-std"]

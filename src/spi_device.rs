@@ -65,15 +65,8 @@ where
             .map_err(SpiDeviceAdapter::<D>::map_err)
     }
 
-    async fn read(
-        &mut self,
-        read_cmd_buf: &[u8],
-        read_buf: &mut [u8],
-    ) -> Result<(), Error> {
-        let mut ops = [
-            Operation::Write(read_cmd_buf),
-            Operation::Read(read_buf),
-        ];
+    async fn read(&mut self, read_cmd_buf: &[u8], read_buf: &mut [u8]) -> Result<(), Error> {
+        let mut ops = [Operation::Write(read_cmd_buf), Operation::Read(read_buf)];
         self.device
             .transaction(&mut ops)
             .await
