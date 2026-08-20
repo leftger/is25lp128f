@@ -665,8 +665,14 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
         Ok(())
     }
 
+    /// Enable the write latch (WREN 06h).
+    ///
+    /// Waits for any in-progress program/erase to finish first: issuing WREN (or the
+    /// following command) while the device is still busy is silently ignored by the
+    /// chip, which would otherwise make the caller's operation a silent no-op.
     pub async fn enable_write_latch(&mut self) -> Result<(), Error> {
-        let mut write_latch_cmd_buf = [Opcode::WriteEnable as u8];
+        self.wait_done().await?;
+        let write_latch_cmd_buf = [Opcode::WriteEnable as u8];
         self.spi.write(&write_latch_cmd_buf).await?;
         Ok(())
     }
@@ -709,7 +715,8 @@ impl<S: Spi, H: HardwareInterface> Is25lp128f<S, H> {
 
     /// Erase the entire chip. Takes a long time; prefer sector/block erase when possible.
     pub async fn full_erase(&mut self) -> Result<(), Error> {
-        let mut erase_cmd_buf = [Opcode::ChipErase as u8];
+        let erase_cmd_buf = [Opcode::ChipErase as u8];
+        self.enable_write_latch().await?;
         self.spi.write(&erase_cmd_buf).await?;
         self.wait_done().await?;
         Ok(())
