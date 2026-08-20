@@ -186,7 +186,7 @@ READ_REG:
       start: 3
       end: 7
       access: RO
-      description: Dummy cycles selection bits P[6:3].
+      description: Dummy cycles selection bits P\[6:3\].
     HOLD_RST:
       base: bool
       start: 7
@@ -408,7 +408,7 @@ READ_PARAMS_VOLATILE_REG:
       start: 3
       end: 7
       access: RW
-      description: Dummy cycles selection P[6:3] (0 default, 1..15 cycles).
+      description: Dummy cycles selection P\[6:3\] (0 default, 1..15 cycles).
     HOLD_RST:
       base: bool
       start: 7
@@ -441,7 +441,7 @@ READ_PARAMS_NV_REG:
       start: 3
       end: 7
       access: RW
-      description: Dummy cycles selection P[6:3] (0 default, 1..15 cycles).
+      description: Dummy cycles selection P\[6:3\] (0 default, 1..15 cycles).
     HOLD_RST:
       base: bool
       start: 7

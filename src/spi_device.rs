@@ -3,7 +3,7 @@
 //! Use this when your SPI peripheral is a **device** (with its own CS and possibly a shared bus)
 //! rather than a raw bus. For example, with [embassy-embedded-hal] you can share one SPI bus
 //! across multiple devices; each device gets a `SpiDevice` (bus + CS). Wrap that `SpiDevice` in
-//! [`SpiDeviceAdapter`] to use it with [`Is25lp128f`].
+//! [`SpiDeviceAdapter`] to use it with [`Is25lp128f`](crate::Is25lp128f).
 //!
 //! [embassy-embedded-hal]: https://crates.io/crates/embassy-embedded-hal
 //!
